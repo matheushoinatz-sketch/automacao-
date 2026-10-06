@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AlHamin - Pedidos ao vivo</title>
+<style>
+:root{--bg:#12182a;--c:#1c2440;--t:#f1ede4;--m:#9aa3bd;--b:#2c3658}
+body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,sans-serif}
+header{background:#1f3864;padding:14px 16px}h1{margin:0;font-size:18px}.sub{font-size:12px;opacity:.8;margin-top:4px}
+main{max-width:1100px;margin:auto;padding:14px;display:grid;gap:14px}
+.tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.k,.l{background:var(--c);border:1px solid var(--b);border-radius:12px;padding:12px}
+.k small{color:var(--m);font-size:12px}.k b{display:block;font-size:24px;margin-top:4px}
+.lojas{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.l h2{margin:0 0 10px;font-size:16px}.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g div{background:#161d36;border-radius:8px;padding:8px}.g small{color:var(--m);font-size:11px}.g b{display:block;font-size:20px}
+.h{display:flex;align-items:flex-end;gap:2px;height:60px;margin-top:10px}.h i{flex:1;border-radius:2px 2px 0 0;min-height:1px}
+.hl{display:flex;justify-content:space-between;color:var(--m);font-size:10px}
+.err{color:#ff9d8a;font-size:13px}
+</style></head><body>
+<header><h1>AlHamin - Pedidos ao vivo</h1><div class="sub" id="st">Carregando…</div></header>
+<main><div class="tot" id="tot"></div><div class="lojas" id="lojas"></div></main>
+<script>
+const COR={Barreirinha:'#c97f1a',Fazendinha:'#2d6a4f',BR277:'#4a6fa5'};
+const nf=n=>Math.round(n).toLocaleString('pt-BR');
+const brl=n=>'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+let k=localStorage.getItem('k')||'';
+async function load(){
+  try{
+    const r=await fetch('/.netlify/functions/pedidos?k='+encodeURIComponent(k));
+    if(r.status===401){k=prompt('Chave de acesso:')||'';localStorage.setItem('k',k);return load();}
+    const d=await r.json();render(d);
+  }catch(e){document.getElementById('st').textContent='Falha ao atualizar. Tentando de novo…';}
+}
+function render(d){
+  const L=Object.entries(d.lojas),ok=L.filter(([,v])=>!v.erro).map(([,v])=>v);
+  const s=f=>ok.reduce((a,v)=>a+f(v),0);
+  const tv=s(v=>v.valor),te=s(v=>v.entregues);
+  document.getElementById('st').textContent='Hoje ('+d.data.split('-').reverse().join('/')+') · atualizado às '+new Date(d.atualizado).toLocaleTimeString('pt-BR')+' · atualiza a cada 60s';
+  document.getElementById('tot').innerHTML=[['Pedidos hoje',nf(s(v=>v.total))],['Em andamento',nf(s(v=>v.andamento))],['Entregues',nf(te)],['Cancelados',nf(s(v=>v.cancelados))],['Valor entregue',brl(tv)],['Ticket médio',brl(te?tv/te:0)]].map(([a,b])=>`<div class="k"><small>${a}</small><b>${b}</b></div>`).join('');
+  document.getElementById('lojas').innerHTML=L.map(([n,v])=>{
+    if(v.erro)return`<div class="l"><h2 style="color:${COR[n]}">${n}</h2><div class="err">${v.erro}</div></div>`;
+    const mx=Math.max(...v.horas,1);
+    return`<div class="l"><h2 style="color:${COR[n]}">${n}</h2><div class="g">
+    <div><small>Pedidos hoje</small><b>${nf(v.total)}</b></div><div><small>Em andamento</small><b>${nf(v.andamento)}</b></div>
+    <div><small>Entregues</small><b>${nf(v.entregues)}</b></div><div><small>Cancelados</small><b>${nf(v.cancelados)}</b></div>
+    <div><small>Valor entregue</small><b>${brl(v.valor)}</b></div><div><small>Tempo mediano</small><b>${v.tempo==null?'—':Math.round(v.tempo)+' min'}</b></div></div>
+    <div class="h">${v.horas.slice(10).map(x=>`<i title="${x}" style="height:${x/mx*100}%;background:${COR[n]}"></i>`).join('')}</div>
+    <div class="hl"><span>10h</span><span>16h</span><span>23h</span></div>${v.limite?'<div class="err">Atingiu 500 pedidos: total pode estar incompleto</div>':''}</div>`}).join('');
+}
+load();setInterval(load,60000);
+</script></body></html>
